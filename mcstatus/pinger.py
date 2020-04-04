@@ -123,6 +123,26 @@ class PingResponse:
                 raise ValueError("Invalid version object (expected 'protocol' to be int, was %s)" % type(raw["protocol"]))
             self.protocol = raw["protocol"]
 
+    class ModInfo:
+        __slots__ = ('type', 'list')
+        def __init__(self, raw):
+            self.type = None
+            self.list = []
+
+            if 'type' in raw:
+                self.type = raw['type']
+
+            if 'modList' in raw:
+                self.list = [PingResponse.ModInfo.ModList(m) for m in raw['modList']]
+
+        def __repr__(self):
+                return f'<ModInfo {self.type} server with {len(self.list)} mods>'
+        class ModList:
+            __slots__ = ('id', 'version')
+            def __init__(self, raw):
+                self.id = raw['modid']
+                self.version = raw['version']
+
     def __init__(self, raw):
         self.raw = raw
 
@@ -142,5 +162,10 @@ class PingResponse:
             self.favicon = raw["favicon"]
         else:
             self.favicon = None
+
+        if "modinfo" in raw:
+            self.modinfo = PingResponse.ModInfo(raw["modinfo"])
+        else:
+            self.modinfo = None
 
         self.latency = None
