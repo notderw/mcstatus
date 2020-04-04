@@ -1,3 +1,4 @@
+import asyncio
 import socket
 import struct
 
@@ -7,7 +8,7 @@ class Connection:
         self.sent = bytearray()
         self.received = bytearray()
 
-    def read(self, length):
+    async def read(self, length):
         result = self.received[:length]
         self.received = self.received[length:]
         return result
@@ -38,10 +39,10 @@ class Connection:
     def _pack(self, format, data):
         return struct.pack(">" + format, data)
 
-    def read_varint(self):
+    async def read_varint(self):
         result = 0
         for i in range(5):
-            part = ord(self.read(1))
+            part = ord(await self.read(1))
             result |= (part & 0x7F) << 7 * i
             if not part & 0x80:
                 return result
@@ -57,64 +58,64 @@ class Connection:
             remaining >>= 7
         raise ValueError("The value %d is too big to send in a varint" % value)
 
-    def read_utf(self):
-        length = self.read_varint()
-        return self.read(length).decode('utf8')
+    async def read_utf(self):
+        length = await self.read_varint()
+        return (await self.read(length)).decode('utf8')
 
     def write_utf(self, value):
         self.write_varint(len(value))
         self.write(bytearray(value, 'utf8'))
 
-    def read_ascii(self):
+    async def read_ascii(self):
         result = bytearray()
         while len(result) == 0 or result[-1] != 0:
-            result.extend(self.read(1))
+            result.extend(await self.read(1))
         return result[:-1].decode("ISO-8859-1")
 
     def write_ascii(self, value):
         self.write(bytearray(value, 'ISO-8859-1'))
         self.write(bytearray.fromhex("00"))
 
-    def read_short(self):
-        return self._unpack("h", self.read(2))
+    async def read_short(self):
+        return self._unpack("h", await self.read(2))
 
     def write_short(self, value):
         self.write(self._pack("h", value))
 
-    def read_ushort(self):
-        return self._unpack("H", self.read(2))
+    async def read_ushort(self):
+        return self._unpack("H", await self.read(2))
 
     def write_ushort(self, value):
         self.write(self._pack("H", value))
 
-    def read_int(self):
-        return self._unpack("i", self.read(4))
+    async def read_int(self):
+        return self._unpack("i", await self.read(4))
 
     def write_int(self, value):
         self.write(self._pack("i", value))
 
-    def read_uint(self):
-        return self._unpack("I", self.read(4))
+    async def read_uint(self):
+        return self._unpack("I", await self.read(4))
 
     def write_uint(self, value):
         self.write(self._pack("I", value))
 
-    def read_long(self):
-        return self._unpack("q", self.read(8))
+    async def read_long(self):
+        return self._unpack("q", await self.read(8))
 
     def write_long(self, value):
         self.write(self._pack("q", value))
 
-    def read_ulong(self):
-        return self._unpack("Q", self.read(8))
+    async def read_ulong(self):
+        return self._unpack("Q", await self.read(8))
 
     def write_ulong(self, value):
         self.write(self._pack("Q", value))
 
-    def read_buffer(self):
-        length = self.read_varint()
+    async def read_buffer(self):
+        length = await self.read_varint()
         result = Connection()
-        result.receive(self.read(length))
+        result.receive(await self.read(length))
         return result
 
     def write_buffer(self, buffer):
@@ -126,7 +127,24 @@ class Connection:
 class TCPSocketConnection(Connection):
     def __init__(self, addr, timeout=3):
         Connection.__init__(self)
-        self.socket = socket.create_connection(addr, timeout=timeout)
+
+        self.host = addr[0]
+        self.port = addr[1]
+        self.timeout = timeout
+
+        self._reader = None
+        self._writer = None
+
+    async def __aenter__(self):
+        if not self._writer:
+            fut = asyncio.open_connection(self.host, self.port)
+            self._reader, self._writer = await asyncio.wait_for(fut, timeout=self.timeout)
+
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if self._writer:
+            self._writer.close()
 
     def flush(self):
         raise TypeError("TCPSocketConnection does not support flush()")
@@ -137,23 +155,17 @@ class TCPSocketConnection(Connection):
     def remaining(self):
         raise TypeError("TCPSocketConnection does not support remaining()")
 
-    def read(self, length):
+    async def read(self, length):
         result = bytearray()
         while len(result) < length:
-            new = self.socket.recv(length - len(result))
+            new = await self._reader.read(length - len(result))
             if len(new) == 0:
                 raise IOError("Server did not respond with any information!")
             result.extend(new)
         return result
 
     def write(self, data):
-        self.socket.send(data)
-
-    def __del__(self):
-        try:
-            self.socket.close()
-        except:
-            pass
+        self._writer.write(data)
 
 
 class UDPSocketConnection(Connection):
@@ -182,9 +194,3 @@ class UDPSocketConnection(Connection):
         if isinstance(data, Connection):
             data = bytearray(data.flush())
         self.socket.sendto(data, self.addr)
-
-    def __del__(self):
-        try:
-            self.socket.close()
-        except:
-            pass

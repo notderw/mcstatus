@@ -26,16 +26,16 @@ class ServerPinger:
 
         self.connection.write_buffer(packet)
 
-    def read_status(self):
+    async def read_status(self):
         request = Connection()
         request.write_varint(0)  # Request status
         self.connection.write_buffer(request)
 
-        response = self.connection.read_buffer()
-        if response.read_varint() != 0:
+        response = await self.connection.read_buffer()
+        if await response.read_varint() != 0:
             raise IOError("Received invalid status response packet.")
         try:
-            raw = json.loads(response.read_utf())
+            raw = json.loads(await response.read_utf())
         except ValueError:
             raise IOError("Received invalid JSON")
         try:
@@ -43,18 +43,18 @@ class ServerPinger:
         except ValueError as e:
             raise IOError("Received invalid status response: %s" % e)
 
-    def test_ping(self):
+    async def test_ping(self):
         request = Connection()
         request.write_varint(1)  # Test ping
         request.write_long(self.ping_token)
         sent = datetime.datetime.now()
         self.connection.write_buffer(request)
 
-        response = self.connection.read_buffer()
+        response = await self.connection.read_buffer()
         received = datetime.datetime.now()
-        if response.read_varint() != 1:
+        if await response.read_varint() != 1:
             raise IOError("Received invalid ping response packet.")
-        received_token = response.read_long()
+        received_token = await response.read_long()
         if received_token != self.ping_token:
             raise IOError("Received mangled ping response packet (expected token %d, received %d)" % (
                 self.ping_token, received_token))

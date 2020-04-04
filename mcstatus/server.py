@@ -32,33 +32,33 @@ class MinecraftServer:
 
         return MinecraftServer(host, port)
 
-    def ping(self, retries=3, **kwargs):
-        connection = TCPSocketConnection((self.host, self.port))
-        exception = None
-        for attempt in range(retries):
-            try:
-                pinger = ServerPinger(connection, host=self.host, port=self.port, **kwargs)
-                pinger.handshake()
-                return pinger.test_ping()
-            except Exception as e:
-                exception = e
-        else:
-            raise exception
+    async def ping(self, retries=3, **kwargs):
+        async with TCPSocketConnection((self.host, self.port)) as connection:
+            exception = None
+            for attempt in range(retries):
+                try:
+                    pinger = ServerPinger(connection, host=self.host, port=self.port, **kwargs)
+                    pinger.handshake()
+                    return await pinger.test_ping()
+                except Exception as e:
+                    exception = e
+            else:
+                raise exception
 
-    def status(self, retries=3, **kwargs):
-        connection = TCPSocketConnection((self.host, self.port))
-        exception = None
-        for attempt in range(retries):
-            try:
-                pinger = ServerPinger(connection, host=self.host, port=self.port, **kwargs)
-                pinger.handshake()
-                result = pinger.read_status()
-                result.latency = pinger.test_ping()
-                return result
-            except Exception as e:
-                exception = e
-        else:
-            raise exception
+    async def status(self, retries=3, **kwargs):
+        async with TCPSocketConnection((self.host, self.port)) as connection:
+            exception = None
+            for attempt in range(retries):
+                try:
+                    pinger = ServerPinger(connection, host=self.host, port=self.port, **kwargs)
+                    pinger.handshake()
+                    result = await pinger.read_status()
+                    result.latency = await pinger.test_ping()
+                    return result
+                except Exception as e:
+                    exception = e
+            else:
+                raise exception
 
     def query(self, retries=3):
         exception = None
