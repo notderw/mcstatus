@@ -2,6 +2,7 @@ import asyncio
 import socket
 import struct
 
+from ..scripts.address_tools import ip_type
 
 class Connection:
     def __init__(self):
@@ -172,7 +173,7 @@ class UDPSocketConnection(Connection):
     def __init__(self, addr, timeout=3):
         Connection.__init__(self)
         self.addr = addr
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket = socket.socket(socket.AF_INET if ip_type(addr[0]) == 4 else socket.AF_INET6, socket.SOCK_DGRAM)
         self.socket.settimeout(timeout)
 
     def flush(self):

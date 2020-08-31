@@ -1,6 +1,7 @@
 from mcstatus.pinger import ServerPinger
 from mcstatus.protocol.connection import TCPSocketConnection, UDPSocketConnection
 from mcstatus.querier import ServerQuerier
+from mcstatus.scripts.address_tools import parse_address
 import dns.resolver
 
 
@@ -11,14 +12,7 @@ class MinecraftServer:
 
     @staticmethod
     def lookup(address):
-        host = address
-        port = None
-        if ":" in address:
-            parts = address.split(":")
-            if len(parts) > 2:
-                raise ValueError("Invalid address '%s'" % address)
-            host = parts[0]
-            port = int(parts[1])
+        host, port = parse_address(address)
         if port is None:
             port = 25565
             try:
@@ -32,7 +26,7 @@ class MinecraftServer:
 
         return MinecraftServer(host, port)
 
-    async def ping(self, retries=3, **kwargs):
+    async def ping(self, tries=3, **kwargs):
         async with TCPSocketConnection((self.host, self.port)) as connection:
             exception = None
             for attempt in range(retries):
@@ -45,7 +39,7 @@ class MinecraftServer:
             else:
                 raise exception
 
-    async def status(self, retries=3, **kwargs):
+    async def status(self, tries=3, **kwargs):
         async with TCPSocketConnection((self.host, self.port)) as connection:
             exception = None
             for attempt in range(retries):
@@ -60,7 +54,7 @@ class MinecraftServer:
             else:
                 raise exception
 
-    def query(self, retries=3):
+    def query(self, tries=3):
         exception = None
         host = self.host
         try:
@@ -70,7 +64,7 @@ class MinecraftServer:
                 host = str(answer).rstrip(".")
         except Exception as e:
             pass
-        for attempt in range(retries):
+        for attempt in range(tries):
             try:
                 connection = UDPSocketConnection((host, self.port))
                 querier = ServerQuerier(connection)
