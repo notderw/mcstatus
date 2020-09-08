@@ -29,7 +29,7 @@ class MinecraftServer:
     async def ping(self, tries=3, **kwargs):
         async with TCPSocketConnection((self.host, self.port)) as connection:
             exception = None
-            for attempt in range(retries):
+            for attempt in range(tries):
                 try:
                     pinger = ServerPinger(connection, host=self.host, port=self.port, **kwargs)
                     pinger.handshake()
@@ -42,7 +42,7 @@ class MinecraftServer:
     async def status(self, tries=3, **kwargs):
         async with TCPSocketConnection((self.host, self.port)) as connection:
             exception = None
-            for attempt in range(retries):
+            for attempt in range(tries):
                 try:
                     pinger = ServerPinger(connection, host=self.host, port=self.port, **kwargs)
                     pinger.handshake()
